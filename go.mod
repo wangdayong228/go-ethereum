@@ -1,4 +1,4 @@
-module github.com/ethereum/go-ethereum
+module github.com/wangdayong228/go-ethereum
 
 go 1.13
 
