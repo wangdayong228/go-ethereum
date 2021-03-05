@@ -17,16 +17,12 @@
 package usbwallet
 
 import (
-	"errors"
-	"runtime"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/karalabe/usb"
 )
 
 // LedgerScheme is the protocol scheme prefixing account and wallet URLs.
@@ -99,9 +95,9 @@ func NewTrezorHubWithWebUSB() (*Hub, error) {
 
 // newHub creates a new hardware wallet manager for generic USB devices.
 func newHub(scheme string, vendorID uint16, productIDs []uint16, usageID uint16, endpointID int, makeDriver func(log.Logger) driver) (*Hub, error) {
-	if !usb.Supported() {
-		return nil, errors.New("unsupported platform")
-	}
+	// if !usb.Supported() {
+	// 	return nil, errors.New("unsupported platform")
+	// }
 	hub := &Hub{
 		scheme:     scheme,
 		vendorID:   vendorID,
@@ -133,109 +129,109 @@ func (hub *Hub) Wallets() []accounts.Wallet {
 // list of wallets based on the found devices.
 func (hub *Hub) refreshWallets() {
 	// Don't scan the USB like crazy it the user fetches wallets in a loop
-	hub.stateLock.RLock()
-	elapsed := time.Since(hub.refreshed)
-	hub.stateLock.RUnlock()
+	// hub.stateLock.RLock()
+	// elapsed := time.Since(hub.refreshed)
+	// hub.stateLock.RUnlock()
 
-	if elapsed < refreshThrottling {
-		return
-	}
-	// If USB enumeration is continually failing, don't keep trying indefinitely
-	if atomic.LoadUint32(&hub.enumFails) > 2 {
-		return
-	}
-	// Retrieve the current list of USB wallet devices
-	var devices []usb.DeviceInfo
+	// if elapsed < refreshThrottling {
+	// 	return
+	// }
+	// // If USB enumeration is continually failing, don't keep trying indefinitely
+	// if atomic.LoadUint32(&hub.enumFails) > 2 {
+	// 	return
+	// }
+	// // Retrieve the current list of USB wallet devices
+	// var devices []usb.DeviceInfo
 
-	if runtime.GOOS == "linux" {
-		// hidapi on Linux opens the device during enumeration to retrieve some infos,
-		// breaking the Ledger protocol if that is waiting for user confirmation. This
-		// is a bug acknowledged at Ledger, but it won't be fixed on old devices so we
-		// need to prevent concurrent comms ourselves. The more elegant solution would
-		// be to ditch enumeration in favor of hotplug events, but that don't work yet
-		// on Windows so if we need to hack it anyway, this is more elegant for now.
-		hub.commsLock.Lock()
-		if hub.commsPend > 0 { // A confirmation is pending, don't refresh
-			hub.commsLock.Unlock()
-			return
-		}
-	}
-	infos, err := usb.Enumerate(hub.vendorID, 0)
-	if err != nil {
-		failcount := atomic.AddUint32(&hub.enumFails, 1)
-		if runtime.GOOS == "linux" {
-			// See rationale before the enumeration why this is needed and only on Linux.
-			hub.commsLock.Unlock()
-		}
-		log.Error("Failed to enumerate USB devices", "hub", hub.scheme,
-			"vendor", hub.vendorID, "failcount", failcount, "err", err)
-		return
-	}
-	atomic.StoreUint32(&hub.enumFails, 0)
+	// if runtime.GOOS == "linux" {
+	// 	// hidapi on Linux opens the device during enumeration to retrieve some infos,
+	// 	// breaking the Ledger protocol if that is waiting for user confirmation. This
+	// 	// is a bug acknowledged at Ledger, but it won't be fixed on old devices so we
+	// 	// need to prevent concurrent comms ourselves. The more elegant solution would
+	// 	// be to ditch enumeration in favor of hotplug events, but that don't work yet
+	// 	// on Windows so if we need to hack it anyway, this is more elegant for now.
+	// 	hub.commsLock.Lock()
+	// 	if hub.commsPend > 0 { // A confirmation is pending, don't refresh
+	// 		hub.commsLock.Unlock()
+	// 		return
+	// 	}
+	// }
+	// infos, err := usb.Enumerate(hub.vendorID, 0)
+	// if err != nil {
+	// 	failcount := atomic.AddUint32(&hub.enumFails, 1)
+	// 	if runtime.GOOS == "linux" {
+	// 		// See rationale before the enumeration why this is needed and only on Linux.
+	// 		hub.commsLock.Unlock()
+	// 	}
+	// 	log.Error("Failed to enumerate USB devices", "hub", hub.scheme,
+	// 		"vendor", hub.vendorID, "failcount", failcount, "err", err)
+	// 	return
+	// }
+	// atomic.StoreUint32(&hub.enumFails, 0)
 
-	for _, info := range infos {
-		for _, id := range hub.productIDs {
-			// Windows and Macos use UsageID matching, Linux uses Interface matching
-			if info.ProductID == id && (info.UsagePage == hub.usageID || info.Interface == hub.endpointID) {
-				devices = append(devices, info)
-				break
-			}
-		}
-	}
-	if runtime.GOOS == "linux" {
-		// See rationale before the enumeration why this is needed and only on Linux.
-		hub.commsLock.Unlock()
-	}
-	// Transform the current list of wallets into the new one
-	hub.stateLock.Lock()
+	// for _, info := range infos {
+	// 	for _, id := range hub.productIDs {
+	// 		// Windows and Macos use UsageID matching, Linux uses Interface matching
+	// 		if info.ProductID == id && (info.UsagePage == hub.usageID || info.Interface == hub.endpointID) {
+	// 			devices = append(devices, info)
+	// 			break
+	// 		}
+	// 	}
+	// }
+	// if runtime.GOOS == "linux" {
+	// 	// See rationale before the enumeration why this is needed and only on Linux.
+	// 	hub.commsLock.Unlock()
+	// }
+	// // Transform the current list of wallets into the new one
+	// hub.stateLock.Lock()
 
-	var (
-		wallets = make([]accounts.Wallet, 0, len(devices))
-		events  []accounts.WalletEvent
-	)
+	// var (
+	// 	wallets = make([]accounts.Wallet, 0, len(devices))
+	// 	events  []accounts.WalletEvent
+	// )
 
-	for _, device := range devices {
-		url := accounts.URL{Scheme: hub.scheme, Path: device.Path}
+	// for _, device := range devices {
+	// 	url := accounts.URL{Scheme: hub.scheme, Path: device.Path}
 
-		// Drop wallets in front of the next device or those that failed for some reason
-		for len(hub.wallets) > 0 {
-			// Abort if we're past the current device and found an operational one
-			_, failure := hub.wallets[0].Status()
-			if hub.wallets[0].URL().Cmp(url) >= 0 || failure == nil {
-				break
-			}
-			// Drop the stale and failed devices
-			events = append(events, accounts.WalletEvent{Wallet: hub.wallets[0], Kind: accounts.WalletDropped})
-			hub.wallets = hub.wallets[1:]
-		}
-		// If there are no more wallets or the device is before the next, wrap new wallet
-		if len(hub.wallets) == 0 || hub.wallets[0].URL().Cmp(url) > 0 {
-			logger := log.New("url", url)
-			wallet := &wallet{hub: hub, driver: hub.makeDriver(logger), url: &url, info: device, log: logger}
+	// 	// Drop wallets in front of the next device or those that failed for some reason
+	// 	for len(hub.wallets) > 0 {
+	// 		// Abort if we're past the current device and found an operational one
+	// 		_, failure := hub.wallets[0].Status()
+	// 		if hub.wallets[0].URL().Cmp(url) >= 0 || failure == nil {
+	// 			break
+	// 		}
+	// 		// Drop the stale and failed devices
+	// 		events = append(events, accounts.WalletEvent{Wallet: hub.wallets[0], Kind: accounts.WalletDropped})
+	// 		hub.wallets = hub.wallets[1:]
+	// 	}
+	// 	// If there are no more wallets or the device is before the next, wrap new wallet
+	// 	if len(hub.wallets) == 0 || hub.wallets[0].URL().Cmp(url) > 0 {
+	// 		logger := log.New("url", url)
+	// 		wallet := &wallet{hub: hub, driver: hub.makeDriver(logger), url: &url, info: device, log: logger}
 
-			events = append(events, accounts.WalletEvent{Wallet: wallet, Kind: accounts.WalletArrived})
-			wallets = append(wallets, wallet)
-			continue
-		}
-		// If the device is the same as the first wallet, keep it
-		if hub.wallets[0].URL().Cmp(url) == 0 {
-			wallets = append(wallets, hub.wallets[0])
-			hub.wallets = hub.wallets[1:]
-			continue
-		}
-	}
-	// Drop any leftover wallets and set the new batch
-	for _, wallet := range hub.wallets {
-		events = append(events, accounts.WalletEvent{Wallet: wallet, Kind: accounts.WalletDropped})
-	}
-	hub.refreshed = time.Now()
-	hub.wallets = wallets
-	hub.stateLock.Unlock()
+	// 		events = append(events, accounts.WalletEvent{Wallet: wallet, Kind: accounts.WalletArrived})
+	// 		wallets = append(wallets, wallet)
+	// 		continue
+	// 	}
+	// 	// If the device is the same as the first wallet, keep it
+	// 	if hub.wallets[0].URL().Cmp(url) == 0 {
+	// 		wallets = append(wallets, hub.wallets[0])
+	// 		hub.wallets = hub.wallets[1:]
+	// 		continue
+	// 	}
+	// }
+	// // Drop any leftover wallets and set the new batch
+	// for _, wallet := range hub.wallets {
+	// 	events = append(events, accounts.WalletEvent{Wallet: wallet, Kind: accounts.WalletDropped})
+	// }
+	// hub.refreshed = time.Now()
+	// hub.wallets = wallets
+	// hub.stateLock.Unlock()
 
-	// Fire all wallet events and return
-	for _, event := range events {
-		hub.updateFeed.Send(event)
-	}
+	// // Fire all wallet events and return
+	// for _, event := range events {
+	// 	hub.updateFeed.Send(event)
+	// }
 }
 
 // Subscribe implements accounts.Backend, creating an async subscription to

@@ -18,8 +18,6 @@
 package usbwallet
 
 import (
-	"context"
-	"fmt"
 	"io"
 	"math/big"
 	"sync"
@@ -31,7 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/karalabe/usb"
 )
 
 // Maximum time between wallet health checks to detect USB unplugs.
@@ -77,8 +74,8 @@ type wallet struct {
 	driver driver        // Hardware implementation of the low level device operations
 	url    *accounts.URL // Textual URL uniquely identifying this wallet
 
-	info   usb.DeviceInfo // Known USB device infos about the wallet
-	device usb.Device     // USB device advertising itself as a hardware wallet
+	// info   usb.DeviceInfo // Known USB device infos about the wallet
+	// device usb.Device     // USB device advertising itself as a hardware wallet
 
 	accounts []accounts.Account                         // List of derive accounts pinned on the hardware wallet
 	paths    map[common.Address]accounts.DerivationPath // Known derivation paths for signing operations
@@ -124,140 +121,144 @@ func (w *wallet) URL() accounts.URL {
 // Status implements accounts.Wallet, returning a custom status message from the
 // underlying vendor-specific hardware wallet implementation.
 func (w *wallet) Status() (string, error) {
-	w.stateLock.RLock() // No device communication, state lock is enough
-	defer w.stateLock.RUnlock()
+	panic("not implement")
+	// w.stateLock.RLock() // No device communication, state lock is enough
+	// defer w.stateLock.RUnlock()
 
-	status, failure := w.driver.Status()
-	if w.device == nil {
-		return "Closed", failure
-	}
-	return status, failure
+	// status, failure := w.driver.Status()
+	// if w.device == nil {
+	// 	return "Closed", failure
+	// }
+	// return status, failure
 }
 
 // Open implements accounts.Wallet, attempting to open a USB connection to the
 // hardware wallet.
 func (w *wallet) Open(passphrase string) error {
-	w.stateLock.Lock() // State lock is enough since there's no connection yet at this point
-	defer w.stateLock.Unlock()
+	panic("not implement")
+	// w.stateLock.Lock() // State lock is enough since there's no connection yet at this point
+	// defer w.stateLock.Unlock()
 
-	// If the device was already opened once, refuse to try again
-	if w.paths != nil {
-		return accounts.ErrWalletAlreadyOpen
-	}
-	// Make sure the actual device connection is done only once
-	if w.device == nil {
-		device, err := w.info.Open()
-		if err != nil {
-			return err
-		}
-		w.device = device
-		w.commsLock = make(chan struct{}, 1)
-		w.commsLock <- struct{}{} // Enable lock
-	}
-	// Delegate device initialization to the underlying driver
-	if err := w.driver.Open(w.device, passphrase); err != nil {
-		return err
-	}
-	// Connection successful, start life-cycle management
-	w.paths = make(map[common.Address]accounts.DerivationPath)
+	// // If the device was already opened once, refuse to try again
+	// if w.paths != nil {
+	// 	return accounts.ErrWalletAlreadyOpen
+	// }
+	// // Make sure the actual device connection is done only once
+	// if w.device == nil {
+	// 	device, err := w.info.Open()
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	w.device = device
+	// 	w.commsLock = make(chan struct{}, 1)
+	// 	w.commsLock <- struct{}{} // Enable lock
+	// }
+	// // Delegate device initialization to the underlying driver
+	// if err := w.driver.Open(w.device, passphrase); err != nil {
+	// 	return err
+	// }
+	// // Connection successful, start life-cycle management
+	// w.paths = make(map[common.Address]accounts.DerivationPath)
 
-	w.deriveReq = make(chan chan struct{})
-	w.deriveQuit = make(chan chan error)
-	w.healthQuit = make(chan chan error)
+	// w.deriveReq = make(chan chan struct{})
+	// w.deriveQuit = make(chan chan error)
+	// w.healthQuit = make(chan chan error)
 
-	go w.heartbeat()
-	go w.selfDerive()
+	// go w.heartbeat()
+	// go w.selfDerive()
 
-	// Notify anyone listening for wallet events that a new device is accessible
-	go w.hub.updateFeed.Send(accounts.WalletEvent{Wallet: w, Kind: accounts.WalletOpened})
+	// // Notify anyone listening for wallet events that a new device is accessible
+	// go w.hub.updateFeed.Send(accounts.WalletEvent{Wallet: w, Kind: accounts.WalletOpened})
 
-	return nil
+	// return nil
 }
 
 // heartbeat is a health check loop for the USB wallets to periodically verify
 // whether they are still present or if they malfunctioned.
 func (w *wallet) heartbeat() {
-	w.log.Debug("USB wallet health-check started")
-	defer w.log.Debug("USB wallet health-check stopped")
+	panic("not implement")
+	// w.log.Debug("USB wallet health-check started")
+	// defer w.log.Debug("USB wallet health-check stopped")
 
-	// Execute heartbeat checks until termination or error
-	var (
-		errc chan error
-		err  error
-	)
-	for errc == nil && err == nil {
-		// Wait until termination is requested or the heartbeat cycle arrives
-		select {
-		case errc = <-w.healthQuit:
-			// Termination requested
-			continue
-		case <-time.After(heartbeatCycle):
-			// Heartbeat time
-		}
-		// Execute a tiny data exchange to see responsiveness
-		w.stateLock.RLock()
-		if w.device == nil {
-			// Terminated while waiting for the lock
-			w.stateLock.RUnlock()
-			continue
-		}
-		<-w.commsLock // Don't lock state while resolving version
-		err = w.driver.Heartbeat()
-		w.commsLock <- struct{}{}
-		w.stateLock.RUnlock()
+	// // Execute heartbeat checks until termination or error
+	// var (
+	// 	errc chan error
+	// 	err  error
+	// )
+	// for errc == nil && err == nil {
+	// 	// Wait until termination is requested or the heartbeat cycle arrives
+	// 	select {
+	// 	case errc = <-w.healthQuit:
+	// 		// Termination requested
+	// 		continue
+	// 	case <-time.After(heartbeatCycle):
+	// 		// Heartbeat time
+	// 	}
+	// 	// Execute a tiny data exchange to see responsiveness
+	// 	w.stateLock.RLock()
+	// 	if w.device == nil {
+	// 		// Terminated while waiting for the lock
+	// 		w.stateLock.RUnlock()
+	// 		continue
+	// 	}
+	// 	<-w.commsLock // Don't lock state while resolving version
+	// 	err = w.driver.Heartbeat()
+	// 	w.commsLock <- struct{}{}
+	// 	w.stateLock.RUnlock()
 
-		if err != nil {
-			w.stateLock.Lock() // Lock state to tear the wallet down
-			w.close()
-			w.stateLock.Unlock()
-		}
-		// Ignore non hardware related errors
-		err = nil
-	}
-	// In case of error, wait for termination
-	if err != nil {
-		w.log.Debug("USB wallet health-check failed", "err", err)
-		errc = <-w.healthQuit
-	}
-	errc <- err
+	// 	if err != nil {
+	// 		w.stateLock.Lock() // Lock state to tear the wallet down
+	// 		w.close()
+	// 		w.stateLock.Unlock()
+	// 	}
+	// 	// Ignore non hardware related errors
+	// 	err = nil
+	// }
+	// // In case of error, wait for termination
+	// if err != nil {
+	// 	w.log.Debug("USB wallet health-check failed", "err", err)
+	// 	errc = <-w.healthQuit
+	// }
+	// errc <- err
 }
 
 // Close implements accounts.Wallet, closing the USB connection to the device.
 func (w *wallet) Close() error {
-	// Ensure the wallet was opened
-	w.stateLock.RLock()
-	hQuit, dQuit := w.healthQuit, w.deriveQuit
-	w.stateLock.RUnlock()
+	panic("not implement")
+	// // Ensure the wallet was opened
+	// w.stateLock.RLock()
+	// hQuit, dQuit := w.healthQuit, w.deriveQuit
+	// w.stateLock.RUnlock()
 
-	// Terminate the health checks
-	var herr error
-	if hQuit != nil {
-		errc := make(chan error)
-		hQuit <- errc
-		herr = <-errc // Save for later, we *must* close the USB
-	}
-	// Terminate the self-derivations
-	var derr error
-	if dQuit != nil {
-		errc := make(chan error)
-		dQuit <- errc
-		derr = <-errc // Save for later, we *must* close the USB
-	}
-	// Terminate the device connection
-	w.stateLock.Lock()
-	defer w.stateLock.Unlock()
+	// // Terminate the health checks
+	// var herr error
+	// if hQuit != nil {
+	// 	errc := make(chan error)
+	// 	hQuit <- errc
+	// 	herr = <-errc // Save for later, we *must* close the USB
+	// }
+	// // Terminate the self-derivations
+	// var derr error
+	// if dQuit != nil {
+	// 	errc := make(chan error)
+	// 	dQuit <- errc
+	// 	derr = <-errc // Save for later, we *must* close the USB
+	// }
+	// // Terminate the device connection
+	// w.stateLock.Lock()
+	// defer w.stateLock.Unlock()
 
-	w.healthQuit = nil
-	w.deriveQuit = nil
-	w.deriveReq = nil
+	// w.healthQuit = nil
+	// w.deriveQuit = nil
+	// w.deriveReq = nil
 
-	if err := w.close(); err != nil {
-		return err
-	}
-	if herr != nil {
-		return herr
-	}
-	return derr
+	// if err := w.close(); err != nil {
+	// 	return err
+	// }
+	// if herr != nil {
+	// 	return herr
+	// }
+	// return derr
 }
 
 // close is the internal wallet closer that terminates the USB connection and
@@ -265,177 +266,180 @@ func (w *wallet) Close() error {
 //
 // Note, close assumes the state lock is held!
 func (w *wallet) close() error {
-	// Allow duplicate closes, especially for health-check failures
-	if w.device == nil {
-		return nil
-	}
-	// Close the device, clear everything, then return
-	w.device.Close()
-	w.device = nil
+	panic("not implement")
+	// // Allow duplicate closes, especially for health-check failures
+	// if w.device == nil {
+	// 	return nil
+	// }
+	// // Close the device, clear everything, then return
+	// w.device.Close()
+	// w.device = nil
 
-	w.accounts, w.paths = nil, nil
-	return w.driver.Close()
+	// w.accounts, w.paths = nil, nil
+	// return w.driver.Close()
 }
 
 // Accounts implements accounts.Wallet, returning the list of accounts pinned to
 // the USB hardware wallet. If self-derivation was enabled, the account list is
 // periodically expanded based on current chain state.
 func (w *wallet) Accounts() []accounts.Account {
-	// Attempt self-derivation if it's running
-	reqc := make(chan struct{}, 1)
-	select {
-	case w.deriveReq <- reqc:
-		// Self-derivation request accepted, wait for it
-		<-reqc
-	default:
-		// Self-derivation offline, throttled or busy, skip
-	}
-	// Return whatever account list we ended up with
-	w.stateLock.RLock()
-	defer w.stateLock.RUnlock()
+	panic("not implement")
+	// // Attempt self-derivation if it's running
+	// reqc := make(chan struct{}, 1)
+	// select {
+	// case w.deriveReq <- reqc:
+	// 	// Self-derivation request accepted, wait for it
+	// 	<-reqc
+	// default:
+	// 	// Self-derivation offline, throttled or busy, skip
+	// }
+	// // Return whatever account list we ended up with
+	// w.stateLock.RLock()
+	// defer w.stateLock.RUnlock()
 
-	cpy := make([]accounts.Account, len(w.accounts))
-	copy(cpy, w.accounts)
-	return cpy
+	// cpy := make([]accounts.Account, len(w.accounts))
+	// copy(cpy, w.accounts)
+	// return cpy
 }
 
 // selfDerive is an account derivation loop that upon request attempts to find
 // new non-zero accounts.
 func (w *wallet) selfDerive() {
-	w.log.Debug("USB wallet self-derivation started")
-	defer w.log.Debug("USB wallet self-derivation stopped")
+	panic("not implement")
+	// w.log.Debug("USB wallet self-derivation started")
+	// defer w.log.Debug("USB wallet self-derivation stopped")
 
-	// Execute self-derivations until termination or error
-	var (
-		reqc chan struct{}
-		errc chan error
-		err  error
-	)
-	for errc == nil && err == nil {
-		// Wait until either derivation or termination is requested
-		select {
-		case errc = <-w.deriveQuit:
-			// Termination requested
-			continue
-		case reqc = <-w.deriveReq:
-			// Account discovery requested
-		}
-		// Derivation needs a chain and device access, skip if either unavailable
-		w.stateLock.RLock()
-		if w.device == nil || w.deriveChain == nil {
-			w.stateLock.RUnlock()
-			reqc <- struct{}{}
-			continue
-		}
-		select {
-		case <-w.commsLock:
-		default:
-			w.stateLock.RUnlock()
-			reqc <- struct{}{}
-			continue
-		}
-		// Device lock obtained, derive the next batch of accounts
-		var (
-			accs  []accounts.Account
-			paths []accounts.DerivationPath
+	// // Execute self-derivations until termination or error
+	// var (
+	// 	reqc chan struct{}
+	// 	errc chan error
+	// 	err  error
+	// )
+	// for errc == nil && err == nil {
+	// 	// Wait until either derivation or termination is requested
+	// 	select {
+	// 	case errc = <-w.deriveQuit:
+	// 		// Termination requested
+	// 		continue
+	// 	case reqc = <-w.deriveReq:
+	// 		// Account discovery requested
+	// 	}
+	// 	// Derivation needs a chain and device access, skip if either unavailable
+	// 	w.stateLock.RLock()
+	// 	if w.device == nil || w.deriveChain == nil {
+	// 		w.stateLock.RUnlock()
+	// 		reqc <- struct{}{}
+	// 		continue
+	// 	}
+	// 	select {
+	// 	case <-w.commsLock:
+	// 	default:
+	// 		w.stateLock.RUnlock()
+	// 		reqc <- struct{}{}
+	// 		continue
+	// 	}
+	// 	// Device lock obtained, derive the next batch of accounts
+	// 	var (
+	// 		accs  []accounts.Account
+	// 		paths []accounts.DerivationPath
 
-			nextPaths = append([]accounts.DerivationPath{}, w.deriveNextPaths...)
-			nextAddrs = append([]common.Address{}, w.deriveNextAddrs...)
+	// 		nextPaths = append([]accounts.DerivationPath{}, w.deriveNextPaths...)
+	// 		nextAddrs = append([]common.Address{}, w.deriveNextAddrs...)
 
-			context = context.Background()
-		)
-		for i := 0; i < len(nextAddrs); i++ {
-			for empty := false; !empty; {
-				// Retrieve the next derived Ethereum account
-				if nextAddrs[i] == (common.Address{}) {
-					if nextAddrs[i], err = w.driver.Derive(nextPaths[i]); err != nil {
-						w.log.Warn("USB wallet account derivation failed", "err", err)
-						break
-					}
-				}
-				// Check the account's status against the current chain state
-				var (
-					balance *big.Int
-					nonce   uint64
-				)
-				balance, err = w.deriveChain.BalanceAt(context, nextAddrs[i], nil)
-				if err != nil {
-					w.log.Warn("USB wallet balance retrieval failed", "err", err)
-					break
-				}
-				nonce, err = w.deriveChain.NonceAt(context, nextAddrs[i], nil)
-				if err != nil {
-					w.log.Warn("USB wallet nonce retrieval failed", "err", err)
-					break
-				}
-				// We've just self-derived a new account, start tracking it locally
-				// unless the account was empty.
-				path := make(accounts.DerivationPath, len(nextPaths[i]))
-				copy(path[:], nextPaths[i][:])
-				if balance.Sign() == 0 && nonce == 0 {
-					empty = true
-					// If it indeed was empty, make a log output for it anyway. In the case
-					// of legacy-ledger, the first account on the legacy-path will
-					// be shown to the user, even if we don't actively track it
-					if i < len(nextAddrs)-1 {
-						w.log.Info("Skipping trakcking first account on legacy path, use personal.deriveAccount(<url>,<path>, false) to track",
-							"path", path, "address", nextAddrs[i])
-						break
-					}
-				}
-				paths = append(paths, path)
-				account := accounts.Account{
-					Address: nextAddrs[i],
-					URL:     accounts.URL{Scheme: w.url.Scheme, Path: fmt.Sprintf("%s/%s", w.url.Path, path)},
-				}
-				accs = append(accs, account)
+	// 		context = context.Background()
+	// 	)
+	// 	for i := 0; i < len(nextAddrs); i++ {
+	// 		for empty := false; !empty; {
+	// 			// Retrieve the next derived Ethereum account
+	// 			if nextAddrs[i] == (common.Address{}) {
+	// 				if nextAddrs[i], err = w.driver.Derive(nextPaths[i]); err != nil {
+	// 					w.log.Warn("USB wallet account derivation failed", "err", err)
+	// 					break
+	// 				}
+	// 			}
+	// 			// Check the account's status against the current chain state
+	// 			var (
+	// 				balance *big.Int
+	// 				nonce   uint64
+	// 			)
+	// 			balance, err = w.deriveChain.BalanceAt(context, nextAddrs[i], nil)
+	// 			if err != nil {
+	// 				w.log.Warn("USB wallet balance retrieval failed", "err", err)
+	// 				break
+	// 			}
+	// 			nonce, err = w.deriveChain.NonceAt(context, nextAddrs[i], nil)
+	// 			if err != nil {
+	// 				w.log.Warn("USB wallet nonce retrieval failed", "err", err)
+	// 				break
+	// 			}
+	// 			// We've just self-derived a new account, start tracking it locally
+	// 			// unless the account was empty.
+	// 			path := make(accounts.DerivationPath, len(nextPaths[i]))
+	// 			copy(path[:], nextPaths[i][:])
+	// 			if balance.Sign() == 0 && nonce == 0 {
+	// 				empty = true
+	// 				// If it indeed was empty, make a log output for it anyway. In the case
+	// 				// of legacy-ledger, the first account on the legacy-path will
+	// 				// be shown to the user, even if we don't actively track it
+	// 				if i < len(nextAddrs)-1 {
+	// 					w.log.Info("Skipping trakcking first account on legacy path, use personal.deriveAccount(<url>,<path>, false) to track",
+	// 						"path", path, "address", nextAddrs[i])
+	// 					break
+	// 				}
+	// 			}
+	// 			paths = append(paths, path)
+	// 			account := accounts.Account{
+	// 				Address: nextAddrs[i],
+	// 				URL:     accounts.URL{Scheme: w.url.Scheme, Path: fmt.Sprintf("%s/%s", w.url.Path, path)},
+	// 			}
+	// 			accs = append(accs, account)
 
-				// Display a log message to the user for new (or previously empty accounts)
-				if _, known := w.paths[nextAddrs[i]]; !known || (!empty && nextAddrs[i] == w.deriveNextAddrs[i]) {
-					w.log.Info("USB wallet discovered new account", "address", nextAddrs[i], "path", path, "balance", balance, "nonce", nonce)
-				}
-				// Fetch the next potential account
-				if !empty {
-					nextAddrs[i] = common.Address{}
-					nextPaths[i][len(nextPaths[i])-1]++
-				}
-			}
-		}
-		// Self derivation complete, release device lock
-		w.commsLock <- struct{}{}
-		w.stateLock.RUnlock()
+	// 			// Display a log message to the user for new (or previously empty accounts)
+	// 			if _, known := w.paths[nextAddrs[i]]; !known || (!empty && nextAddrs[i] == w.deriveNextAddrs[i]) {
+	// 				w.log.Info("USB wallet discovered new account", "address", nextAddrs[i], "path", path, "balance", balance, "nonce", nonce)
+	// 			}
+	// 			// Fetch the next potential account
+	// 			if !empty {
+	// 				nextAddrs[i] = common.Address{}
+	// 				nextPaths[i][len(nextPaths[i])-1]++
+	// 			}
+	// 		}
+	// 	}
+	// 	// Self derivation complete, release device lock
+	// 	w.commsLock <- struct{}{}
+	// 	w.stateLock.RUnlock()
 
-		// Insert any accounts successfully derived
-		w.stateLock.Lock()
-		for i := 0; i < len(accs); i++ {
-			if _, ok := w.paths[accs[i].Address]; !ok {
-				w.accounts = append(w.accounts, accs[i])
-				w.paths[accs[i].Address] = paths[i]
-			}
-		}
-		// Shift the self-derivation forward
-		// TODO(karalabe): don't overwrite changes from wallet.SelfDerive
-		w.deriveNextAddrs = nextAddrs
-		w.deriveNextPaths = nextPaths
-		w.stateLock.Unlock()
+	// 	// Insert any accounts successfully derived
+	// 	w.stateLock.Lock()
+	// 	for i := 0; i < len(accs); i++ {
+	// 		if _, ok := w.paths[accs[i].Address]; !ok {
+	// 			w.accounts = append(w.accounts, accs[i])
+	// 			w.paths[accs[i].Address] = paths[i]
+	// 		}
+	// 	}
+	// 	// Shift the self-derivation forward
+	// 	// TODO(karalabe): don't overwrite changes from wallet.SelfDerive
+	// 	w.deriveNextAddrs = nextAddrs
+	// 	w.deriveNextPaths = nextPaths
+	// 	w.stateLock.Unlock()
 
-		// Notify the user of termination and loop after a bit of time (to avoid trashing)
-		reqc <- struct{}{}
-		if err == nil {
-			select {
-			case errc = <-w.deriveQuit:
-				// Termination requested, abort
-			case <-time.After(selfDeriveThrottling):
-				// Waited enough, willing to self-derive again
-			}
-		}
-	}
-	// In case of error, wait for termination
-	if err != nil {
-		w.log.Debug("USB wallet self-derivation failed", "err", err)
-		errc = <-w.deriveQuit
-	}
-	errc <- err
+	// 	// Notify the user of termination and loop after a bit of time (to avoid trashing)
+	// 	reqc <- struct{}{}
+	// 	if err == nil {
+	// 		select {
+	// 		case errc = <-w.deriveQuit:
+	// 			// Termination requested, abort
+	// 		case <-time.After(selfDeriveThrottling):
+	// 			// Waited enough, willing to self-derive again
+	// 		}
+	// 	}
+	// }
+	// // In case of error, wait for termination
+	// if err != nil {
+	// 	w.log.Debug("USB wallet self-derivation failed", "err", err)
+	// 	errc = <-w.deriveQuit
+	// }
+	// errc <- err
 }
 
 // Contains implements accounts.Wallet, returning whether a particular account is
@@ -453,40 +457,41 @@ func (w *wallet) Contains(account accounts.Account) bool {
 // derivation path. If pin is set to true, the account will be added to the list
 // of tracked accounts.
 func (w *wallet) Derive(path accounts.DerivationPath, pin bool) (accounts.Account, error) {
-	// Try to derive the actual account and update its URL if successful
-	w.stateLock.RLock() // Avoid device disappearing during derivation
+	panic("not implement")
+	// // Try to derive the actual account and update its URL if successful
+	// w.stateLock.RLock() // Avoid device disappearing during derivation
 
-	if w.device == nil {
-		w.stateLock.RUnlock()
-		return accounts.Account{}, accounts.ErrWalletClosed
-	}
-	<-w.commsLock // Avoid concurrent hardware access
-	address, err := w.driver.Derive(path)
-	w.commsLock <- struct{}{}
+	// if w.device == nil {
+	// 	w.stateLock.RUnlock()
+	// 	return accounts.Account{}, accounts.ErrWalletClosed
+	// }
+	// <-w.commsLock // Avoid concurrent hardware access
+	// address, err := w.driver.Derive(path)
+	// w.commsLock <- struct{}{}
 
-	w.stateLock.RUnlock()
+	// w.stateLock.RUnlock()
 
-	// If an error occurred or no pinning was requested, return
-	if err != nil {
-		return accounts.Account{}, err
-	}
-	account := accounts.Account{
-		Address: address,
-		URL:     accounts.URL{Scheme: w.url.Scheme, Path: fmt.Sprintf("%s/%s", w.url.Path, path)},
-	}
-	if !pin {
-		return account, nil
-	}
-	// Pinning needs to modify the state
-	w.stateLock.Lock()
-	defer w.stateLock.Unlock()
+	// // If an error occurred or no pinning was requested, return
+	// if err != nil {
+	// 	return accounts.Account{}, err
+	// }
+	// account := accounts.Account{
+	// 	Address: address,
+	// 	URL:     accounts.URL{Scheme: w.url.Scheme, Path: fmt.Sprintf("%s/%s", w.url.Path, path)},
+	// }
+	// if !pin {
+	// 	return account, nil
+	// }
+	// // Pinning needs to modify the state
+	// w.stateLock.Lock()
+	// defer w.stateLock.Unlock()
 
-	if _, ok := w.paths[address]; !ok {
-		w.accounts = append(w.accounts, account)
-		w.paths[address] = make(accounts.DerivationPath, len(path))
-		copy(w.paths[address], path)
-	}
-	return account, nil
+	// if _, ok := w.paths[address]; !ok {
+	// 	w.accounts = append(w.accounts, account)
+	// 	w.paths[address] = make(accounts.DerivationPath, len(path))
+	// 	copy(w.paths[address], path)
+	// }
+	// return account, nil
 }
 
 // SelfDerive sets a base account derivation path from which the wallet attempts
@@ -546,42 +551,43 @@ func (w *wallet) SignText(account accounts.Account, text []byte) ([]byte, error)
 // too old to sign EIP-155 transactions, but such is requested nonetheless, an error
 // will be returned opposed to silently signing in Homestead mode.
 func (w *wallet) SignTx(account accounts.Account, tx *types.Transaction, chainID *big.Int) (*types.Transaction, error) {
-	w.stateLock.RLock() // Comms have own mutex, this is for the state fields
-	defer w.stateLock.RUnlock()
+	panic("not implement")
+	// w.stateLock.RLock() // Comms have own mutex, this is for the state fields
+	// defer w.stateLock.RUnlock()
 
-	// If the wallet is closed, abort
-	if w.device == nil {
-		return nil, accounts.ErrWalletClosed
-	}
-	// Make sure the requested account is contained within
-	path, ok := w.paths[account.Address]
-	if !ok {
-		return nil, accounts.ErrUnknownAccount
-	}
-	// All infos gathered and metadata checks out, request signing
-	<-w.commsLock
-	defer func() { w.commsLock <- struct{}{} }()
+	// // If the wallet is closed, abort
+	// if w.device == nil {
+	// 	return nil, accounts.ErrWalletClosed
+	// }
+	// // Make sure the requested account is contained within
+	// path, ok := w.paths[account.Address]
+	// if !ok {
+	// 	return nil, accounts.ErrUnknownAccount
+	// }
+	// // All infos gathered and metadata checks out, request signing
+	// <-w.commsLock
+	// defer func() { w.commsLock <- struct{}{} }()
 
-	// Ensure the device isn't screwed with while user confirmation is pending
-	// TODO(karalabe): remove if hotplug lands on Windows
-	w.hub.commsLock.Lock()
-	w.hub.commsPend++
-	w.hub.commsLock.Unlock()
+	// // Ensure the device isn't screwed with while user confirmation is pending
+	// // TODO(karalabe): remove if hotplug lands on Windows
+	// w.hub.commsLock.Lock()
+	// w.hub.commsPend++
+	// w.hub.commsLock.Unlock()
 
-	defer func() {
-		w.hub.commsLock.Lock()
-		w.hub.commsPend--
-		w.hub.commsLock.Unlock()
-	}()
-	// Sign the transaction and verify the sender to avoid hardware fault surprises
-	sender, signed, err := w.driver.SignTx(path, tx, chainID)
-	if err != nil {
-		return nil, err
-	}
-	if sender != account.Address {
-		return nil, fmt.Errorf("signer mismatch: expected %s, got %s", account.Address.Hex(), sender.Hex())
-	}
-	return signed, nil
+	// defer func() {
+	// 	w.hub.commsLock.Lock()
+	// 	w.hub.commsPend--
+	// 	w.hub.commsLock.Unlock()
+	// }()
+	// // Sign the transaction and verify the sender to avoid hardware fault surprises
+	// sender, signed, err := w.driver.SignTx(path, tx, chainID)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// if sender != account.Address {
+	// 	return nil, fmt.Errorf("signer mismatch: expected %s, got %s", account.Address.Hex(), sender.Hex())
+	// }
+	// return signed, nil
 }
 
 // SignHashWithPassphrase implements accounts.Wallet, however signing arbitrary
